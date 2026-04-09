@@ -1,65 +1,132 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import { GraphCanvas } from "@/components/GraphCanvas";
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const [graphData, setGraphData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [seedForm, setSeedForm] = useState({ firstName: '', lastName: '', gender: '', bio: '', college: '', currentCity: '' });
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetch("/api/graph/nodes")
+        .then(res => res.json())
+        .then(data => {
+          setGraphData(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setLoading(false);
+        });
+    } else if (status === "unauthenticated") {
+      setLoading(false);
+    }
+  }, [status]);
+
+  const handleSeed = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch("/api/graph/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(seedForm),
+      });
+      if (res.ok) {
+        // reload data
+        const newData = await fetch("/api/graph/nodes").then(r => r.json());
+        setGraphData(newData);
+      }
+    } catch(e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (status === "loading" || loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-900 min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (status === "unauthenticated") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-gray-900 text-white min-h-screen p-4">
+        <div className="max-w-md w-full bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 text-center">
+          <div className="w-16 h-16 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <h1 className="text-3xl font-bold mb-2 tracking-tight">Gotaavalaa</h1>
+          <p className="text-gray-400 mb-8">Your private, collaborative personal network graph.</p>
+          <button 
+            onClick={() => signIn()}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+          >
+            Sign In / Create Tree
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If no nodes, show seed form
+  if (graphData && (!graphData.nodes || graphData.nodes.length === 0)) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-gray-900 text-white min-h-screen p-4">
+        <div className="max-w-xl w-full bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700">
+          <h2 className="text-2xl font-bold mb-6">Welcome, {session.user?.name}</h2>
+          <p className="text-gray-400 mb-8">Let's seed your personal garden. Tell us a bit about yourself to kick things off.</p>
+          
+          <form onSubmit={handleSeed} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <input required placeholder="First Name" value={seedForm.firstName} onChange={e => setSeedForm({...seedForm, firstName: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500"/>
+              <input required placeholder="Last Name" value={seedForm.lastName} onChange={e => setSeedForm({...seedForm, lastName: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500"/>
+            </div>
+            
+            <input placeholder="Gender / Pronouns" value={seedForm.gender} onChange={e => setSeedForm({...seedForm, gender: e.target.value})} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500"/>
+            <textarea placeholder="Bio / Headline (e.g. Software Engineer, Avid Hiker)" value={seedForm.bio} onChange={e => setSeedForm({...seedForm, bio: e.target.value})} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 min-h-[100px]"/>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <input required placeholder="College / University" value={seedForm.college} onChange={e => setSeedForm({...seedForm, college: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500"/>
+              <input required placeholder="Current City" value={seedForm.currentCity} onChange={e => setSeedForm({...seedForm, currentCity: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500"/>
+            </div>
+
+            <button type="submit" className="w-full mt-4 bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-xl transition-colors shadow-lg shadow-green-500/20">
+              Plant Seed
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex flex-col h-screen w-full bg-gray-900 overflow-hidden">
+       {/* Top Bar */}
+       <div className="h-14 bg-gray-900/80 backdrop-blur border-b border-gray-800 flex items-center justify-between px-6 z-10 sticky top-0">
+          <div className="flex items-center gap-3">
+             <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold">G</div>
+             <span className="font-semibold text-white tracking-wide">Gotaavalaa</span>
+          </div>
+          <div className="flex items-center gap-4">
+             <span className="text-sm text-gray-400">Tree: <span className="text-gray-200 font-medium">{session.user?.name}</span></span>
+             <button onClick={() => signOut()} className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700 hover:bg-gray-700">
+                Sign Out
+             </button>
+          </div>
+       </div>
+
+       {/* Canvas Area */}
+       <div className="flex-1 w-full relative">
+          <GraphCanvas initialData={graphData} />
+       </div>
     </div>
   );
 }
