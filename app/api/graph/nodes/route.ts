@@ -40,7 +40,7 @@ export async function GET(req: Request) {
         `;
       }
 
-      const result = await sessionDB.executeRead(tx => tx.run(query, params));
+      const result = await sessionDB.executeRead((tx: any) => tx.run(query, params));
       
       const record = result.records[0];
       if (!record) {

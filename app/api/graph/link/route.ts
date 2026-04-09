@@ -65,7 +65,7 @@ export async function POST(req: Request) {
           RETURN collect(DISTINCT t) as targetNode, collect(DISTINCT r) as targetRel
         `;
 
-        const result = await sessionDB.executeWrite(tx => 
+        const result = await sessionDB.executeWrite((tx: any) => 
           tx.run(fullQuery, { treeId, sourceId, targetId, ...props })
         );
 

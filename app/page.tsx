@@ -6,8 +6,9 @@ import { GraphCanvas } from "@/components/GraphCanvas";
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const [graphData, setGraphData] = useState(null);
+  const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [seedError, setSeedError] = useState<string | null>(null);
   const [seedForm, setSeedForm] = useState({ firstName: '', lastName: '', gender: '', bio: '', college: '', currentCity: '' });
 
   useEffect(() => {
@@ -27,22 +28,38 @@ export default function Home() {
     }
   }, [status]);
 
-  const handleSeed = async (e) => {
+  const handleSeed = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSeedError(null);
     try {
       const res = await fetch("/api/graph/seed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(seedForm),
       });
-      if (res.ok) {
-        // reload data
-        const newData = await fetch("/api/graph/nodes").then(r => r.json());
-        setGraphData(newData);
+      
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const msg = errBody.error || `Seed failed with status ${res.status}`;
+        console.error("Seed API error:", msg);
+        setSeedError(msg);
+        setLoading(false);
+        return;
       }
-    } catch(e) {
-      console.error(e);
+
+      // Seed succeeded — reload graph data
+      const nodesRes = await fetch("/api/graph/nodes");
+      if (!nodesRes.ok) {
+        setSeedError("Seed was saved but failed to reload graph. Please refresh the page.");
+        setLoading(false);
+        return;
+      }
+      const newData = await nodesRes.json();
+      setGraphData(newData);
+    } catch(err: any) {
+      console.error("Seed network error:", err);
+      setSeedError(err.message || "Network error — is the server running?");
     } finally {
       setLoading(false);
     }
@@ -81,7 +98,7 @@ export default function Home() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-900 text-white min-h-screen p-4">
         <div className="max-w-xl w-full bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700">
-          <h2 className="text-2xl font-bold mb-6">Welcome, {session.user?.name}</h2>
+          <h2 className="text-2xl font-bold mb-6">Welcome, {session?.user?.name}</h2>
           <p className="text-gray-400 mb-8">Let's seed your personal garden. Tell us a bit about yourself to kick things off.</p>
           
           <form onSubmit={handleSeed} className="space-y-4">
@@ -97,6 +114,12 @@ export default function Home() {
               <input required placeholder="College / University" value={seedForm.college} onChange={e => setSeedForm({...seedForm, college: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500"/>
               <input required placeholder="Current City" value={seedForm.currentCity} onChange={e => setSeedForm({...seedForm, currentCity: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500"/>
             </div>
+
+            {seedError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3 text-sm">
+                <strong>Error:</strong> {seedError}
+              </div>
+            )}
 
             <button type="submit" className="w-full mt-4 bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-xl transition-colors shadow-lg shadow-green-500/20">
               Plant Seed
@@ -116,7 +139,7 @@ export default function Home() {
              <span className="font-semibold text-white tracking-wide">Gotaavalaa</span>
           </div>
           <div className="flex items-center gap-4">
-             <span className="text-sm text-gray-400">Tree: <span className="text-gray-200 font-medium">{session.user?.name}</span></span>
+             <span className="text-sm text-gray-400">Tree: <span className="text-gray-200 font-medium">{session?.user?.name}</span></span>
              <button onClick={() => signOut()} className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700 hover:bg-gray-700">
                 Sign Out
              </button>

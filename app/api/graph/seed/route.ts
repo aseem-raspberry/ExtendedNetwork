@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         RETURN me, inst, city
       `;
 
-      const result = await sessionDB.executeWrite(tx => 
+      const result = await sessionDB.executeWrite((tx: any) => 
         tx.run(query, {
           treeId, firstName, lastName, myId, gender, bio, college, instId, currentCity, cityId
         })

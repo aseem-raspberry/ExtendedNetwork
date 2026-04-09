@@ -25,32 +25,9 @@ function GraphCanvasInner({ initialData }) {
   // Memoize nodeTypes so React Flow doesn't complain about recreating it
   const nodeTypes = useMemo(() => customNodeTypes, []);
 
-  // Compute visible nodes locally (could also adjust the physics if we wanted, 
-  // but simpler to just hide them using standard filtered arrays)
-  const visibleNodes = useMemo(() => {
-    return nodes.filter(n => {
-      // our neo4j API sets labels as array, so n.labels[0] is typically the main type
-      const typeStr = n.labels ? n.labels[0] : n.type;
-      return activeFilters.includes(typeStr);
-    }).map(n => ({
-      ...n,
-      type: n.labels ? n.labels[0] : n.type,
-      data: { 
-        ...n.properties, 
-        onExpand: handleExpandNode // Inject expand callback into node data
-      }
-    }));
-  }, [nodes, activeFilters]);
-
-  // Compute visible edges depending on whether BOTH source and target are visible
-  const visibleEdges = useMemo(() => {
-    const visibleIds = new Set(visibleNodes.map(n => n.id));
-    return edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
-  }, [edges, visibleNodes]);
-
-  const handleNodeClick = (_, node) => {
+  const handleNodeClick = useCallback((_, node) => {
      setSelectedNodeId(node.id);
-  };
+  }, []);
 
   const handleExpandNode = useCallback(async (nodeId) => {
      try {
@@ -83,6 +60,29 @@ function GraphCanvasInner({ initialData }) {
      } catch(e) { console.error("Expand error", e) }
   }, [setNodes, setEdges]);
 
+  // Compute visible nodes locally (could also adjust the physics if we wanted, 
+  // but simpler to just hide them using standard filtered arrays)
+  const visibleNodes = useMemo(() => {
+    return nodes.filter(n => {
+      // our neo4j API sets labels as array, so n.labels[0] is typically the main type
+      const typeStr = n.labels ? n.labels[0] : n.type;
+      return activeFilters.includes(typeStr);
+    }).map(n => ({
+      ...n,
+      type: n.labels ? n.labels[0] : n.type,
+      data: { 
+        ...n.properties, 
+        onExpand: handleExpandNode // Inject expand callback into node data
+      }
+    }));
+  }, [nodes, activeFilters, handleExpandNode]);
+
+  // Compute visible edges depending on whether BOTH source and target are visible
+  const visibleEdges = useMemo(() => {
+    const visibleIds = new Set(visibleNodes.map(n => n.id));
+    return edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
+  }, [edges, visibleNodes]);
+
   const handleAddConnection = async (sourceId, targetType, relationshipType, targetData) => {
     try {
       const res = await fetch('/api/graph/link', {
@@ -94,6 +94,24 @@ function GraphCanvasInner({ initialData }) {
       if (data.success) {
         // Expand the source node to catch the newly created connection
         handleExpandNode(sourceId);
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdateNode = async (nodeId, updates) => {
+    try {
+      const res = await fetch('/api/graph/node', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId, updates })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNodes(prev => prev.map(n => 
+          n.id === nodeId ? { ...n, properties: { ...n.properties, ...data.node } } : n
+        ));
       }
     } catch(e) {
       console.error(e);
@@ -125,6 +143,7 @@ function GraphCanvasInner({ initialData }) {
           node={selectedNode} 
           onClose={() => setSelectedNodeId(null)} 
           onAddConnection={handleAddConnection} 
+          onUpdateNode={handleUpdateNode}
         />
       )}
     </div>
